@@ -24,9 +24,6 @@
 //
 //-----------------------------------------------------------------------------
 
-static const char
-rcsid[] = "$Id: m_misc.c,v 1.6 1997/02/03 22:45:10 b1 Exp $";
-
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
@@ -220,13 +217,13 @@ char*		mousedev;
 
 extern char*	chat_macros[];
 
-
+#include <stdint.h>
 
 typedef struct
 {
     char*	name;
     int*	location;
-    int		defaultvalue;
+    uint64_t defaultvalue;
     int		scantranslate;		// PC scan code hack
     int		untranslated;		// lousy hack
 } default_t;
@@ -254,15 +251,15 @@ default_t	defaults[] =
 
 // UNIX hack, to be removed. 
 #ifdef SNDSERV
-    {"sndserver", (int *) &sndserver_filename, (int) "sndserver"},
+    {"sndserver", (int *) &sndserver_filename, (uint64_t) "sndserver"},
     {"mb_used", &mb_used, 2},
 #endif
     
 #endif
 
 #ifdef LINUX
-    {"mousedev", (int*)&mousedev, (int)"/dev/ttyS0"},
-    {"mousetype", (int*)&mousetype, (int)"microsoft"},
+    {"mousedev", (int*)&mousedev, (uint64_t)"/dev/ttyS0"},
+    {"mousetype", (int*)&mousetype, (uint64_t)"microsoft"},
 #endif
 
     {"use_mouse",&usemouse, 1},
@@ -285,16 +282,16 @@ default_t	defaults[] =
 
     {"usegamma",&usegamma, 0},
 
-    {"chatmacro0", (int *) &chat_macros[0], (int) HUSTR_CHATMACRO0 },
-    {"chatmacro1", (int *) &chat_macros[1], (int) HUSTR_CHATMACRO1 },
-    {"chatmacro2", (int *) &chat_macros[2], (int) HUSTR_CHATMACRO2 },
-    {"chatmacro3", (int *) &chat_macros[3], (int) HUSTR_CHATMACRO3 },
-    {"chatmacro4", (int *) &chat_macros[4], (int) HUSTR_CHATMACRO4 },
-    {"chatmacro5", (int *) &chat_macros[5], (int) HUSTR_CHATMACRO5 },
-    {"chatmacro6", (int *) &chat_macros[6], (int) HUSTR_CHATMACRO6 },
-    {"chatmacro7", (int *) &chat_macros[7], (int) HUSTR_CHATMACRO7 },
-    {"chatmacro8", (int *) &chat_macros[8], (int) HUSTR_CHATMACRO8 },
-    {"chatmacro9", (int *) &chat_macros[9], (int) HUSTR_CHATMACRO9 }
+    {"chatmacro0", (int *) &chat_macros[0], (uint64_t) HUSTR_CHATMACRO0 },
+    {"chatmacro1", (int *) &chat_macros[1], (uint64_t) HUSTR_CHATMACRO1 },
+    {"chatmacro2", (int *) &chat_macros[2], (uint64_t) HUSTR_CHATMACRO2 },
+    {"chatmacro3", (int *) &chat_macros[3], (uint64_t) HUSTR_CHATMACRO3 },
+    {"chatmacro4", (int *) &chat_macros[4], (uint64_t) HUSTR_CHATMACRO4 },
+    {"chatmacro5", (int *) &chat_macros[5], (uint64_t) HUSTR_CHATMACRO5 },
+    {"chatmacro6", (int *) &chat_macros[6], (uint64_t) HUSTR_CHATMACRO6 },
+    {"chatmacro7", (int *) &chat_macros[7], (uint64_t) HUSTR_CHATMACRO7 },
+    {"chatmacro8", (int *) &chat_macros[8], (uint64_t) HUSTR_CHATMACRO8 },
+    {"chatmacro9", (int *) &chat_macros[9], (uint64_t) HUSTR_CHATMACRO9 }
 
 };
 
@@ -310,21 +307,22 @@ void M_SaveDefaults (void)
     int		i;
     int		v;
     FILE*	f;
-	
+
     f = fopen (defaultfile, "w");
     if (!f)
 	return; // can't write the file, but don't complain
-		
+
     for (i=0 ; i<numdefaults ; i++)
     {
-	if (defaults[i].defaultvalue > -0xfff
-	    && defaults[i].defaultvalue < 0xfff)
-	{
+	if (strncmp(defaults[i].name, "sndserver", strlen("sndserver")) &&
+        strncmp(defaults[i].name, "mousedev", strlen("mousedev"))   &&
+        strncmp(defaults[i].name, "mousetype", strlen("mousetype")) &&
+        strncmp(defaults[i].name, "chatmacro", strlen("chatmacro"))) {
+
 	    v = *defaults[i].location;
 	    fprintf (f,"%s\t\t%i\n",defaults[i].name,v);
 	} else {
-	    fprintf (f,"%s\t\t\"%s\"\n",defaults[i].name,
-		     * (char **) (defaults[i].location));
+	    fprintf (f,"%s\t\t\"%s\"\n",defaults[i].name, * (char **) (defaults[i].location));
 	}
     }
 	
@@ -347,12 +345,27 @@ void M_LoadDefaults (void)
     char*	newstring;
     int		parm;
     boolean	isstring;
-    
+
     // set everything to base values
     numdefaults = sizeof(defaults)/sizeof(defaults[0]);
-    for (i=0 ; i<numdefaults ; i++)
-	*defaults[i].location = defaults[i].defaultvalue;
-    
+    for (i=0 ; i<numdefaults ; i++) {
+        if (strncmp(defaults[i].name, "sndserver", strlen("sndserver")) &&
+            strncmp(defaults[i].name, "mousedev", strlen("mousedev"))   &&
+            strncmp(defaults[i].name, "mousetype", strlen("mousetype")) &&
+            strncmp(defaults[i].name, "chatmacro", strlen("chatmacro"))) {
+
+            // * data on setup is int value (4 bytes)
+            *defaults[i].location = defaults[i].defaultvalue;
+            // printf("0x%0llx\n", * (uint64_t*) defaults[i].location);
+            // printf("%s:\t\t%d\n", defaults[i].name, *defaults[i].location);
+        } else {
+            // * data on setup is ptr value (8 bytes)
+            * (char **)defaults[i].location = defaults[i].defaultvalue;
+            // printf("0x%0llx\n", * (uint64_t*) defaults[i].location);
+            // printf("%s:\t\t%s\n", defaults[i].name, * (char **) defaults[i].location);
+        }
+    }
+
     // check for a custom default file
     i = M_CheckParm ("-config");
     if (i && i<myargc-1)
@@ -392,7 +405,7 @@ void M_LoadDefaults (void)
 			    *defaults[i].location = parm;
 			else
 			    *defaults[i].location =
-				(int) newstring;
+				(uint64_t) newstring;
 			break;
 		    }
 	    }

@@ -1,0 +1,8 @@
+# binary
+*.o
+linuxdoom-1.10/linux/*
+
+
+# ignore wads
+*.wad
+wads/
